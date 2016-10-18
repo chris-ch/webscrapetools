@@ -7,7 +7,7 @@ def readme():
 
 setup(
     name='webscrapetools',
-    version='0.2',
+    version='0.3',
     description='A basic but threadsafe caching system',
     long_description=readme(),
     url='https://github.com/chris-ch/webscrapetools',
