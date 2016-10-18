@@ -52,15 +52,14 @@ class TaskPool(object):
         """
         logging.info('processing %d tasks on a pool size of %d', len(self._tasks_args), self._pool_size)
         if self._pool_size == 1:
-            results = list()
             for task_args in self._tasks_args:
                 result = TaskPool._task_function_wrapper(task_args)
-                results.append(result)
+                yield result
 
         else:
             results = self._pool.map(TaskPool._task_function_wrapper, self._tasks_args)
+            for result in results:
+                yield result
 
         self._pool.close()
         self._pool.join()
-
-        return results
