@@ -1,4 +1,4 @@
-# A basic but persistent, threadsafe caching system
+# A basic but fast, persistent and threadsafe caching system
 
 **Basic commands**
 
@@ -10,8 +10,11 @@ Initializing the cache:
 
     urlcaching.set_cache_path('.wst_cache')
     
+The option _expiry_days_ sets the cache expiry period, default is 10 days.
+    
 This is a required step: otherwise responses to url calls will simply not be cached.
-Cache data are stored in the specified folder, so that re-using the same string makes the cache persistent.
+Cache data are stored in the specified folder, so that re-using the same string makes the cache persistent. This creates
+the folder on the fly if it does not exist.
 The following command cleans up the cache, making sure we start with no prior data:
 
     urlcaching.empty_cache()
