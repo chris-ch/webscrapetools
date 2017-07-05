@@ -13,7 +13,6 @@ Subsequent calls for the same URL returns the cached data:
     >>> first_call_response == second_call_response
     True
 
-TODO: validity period for cache content
 """
 import logging
 import os
@@ -29,15 +28,15 @@ import hashlib
 
 from shutil import rmtree
 
-_CACHE_FILE_PATH = None
-_EXPIRY_DAYS = None
-_MAX_NODE_FILES = 0x100
-_REBALANCING_LIMIT = 0x200
-_HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+__CACHE_FILE_PATH = None
+__EXPIRY_DAYS = None
+__MAX_NODE_FILES = 0x100
+__REBALANCING_LIMIT = 0x200
+__HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
 
 
-_rebalancing = threading.Condition()
-_requests_session = None
+__rebalancing = threading.Condition()
+__requests_session = None
 
 __all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached']
 
@@ -48,7 +47,7 @@ def get_requests_session():
 
     :return:
     """
-    return _requests_session
+    return __requests_session
 
 
 def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None, expiry_days=10):
@@ -61,23 +60,23 @@ def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None,
     :param expiry_days:
     :return:
     """
-    global _CACHE_FILE_PATH
-    global _MAX_NODE_FILES
-    global _REBALANCING_LIMIT
-    global _EXPIRY_DAYS
+    global __CACHE_FILE_PATH
+    global __MAX_NODE_FILES
+    global __REBALANCING_LIMIT
+    global __EXPIRY_DAYS
 
-    _EXPIRY_DAYS = expiry_days
+    __EXPIRY_DAYS = expiry_days
 
     if max_node_files is not None:
-        _MAX_NODE_FILES = max_node_files
+        __MAX_NODE_FILES = max_node_files
 
     if rebalancing_limit is not None:
-        _REBALANCING_LIMIT = rebalancing_limit
+        __REBALANCING_LIMIT = rebalancing_limit
 
     cache_file_path_full = os.path.abspath(cache_file_path)
-    _CACHE_FILE_PATH = cache_file_path_full
-    if not os.path.exists(_CACHE_FILE_PATH):
-        os.makedirs(_CACHE_FILE_PATH)
+    __CACHE_FILE_PATH = cache_file_path_full
+    if not os.path.exists(__CACHE_FILE_PATH):
+        os.makedirs(__CACHE_FILE_PATH)
 
     logging.debug('setting cache path: %s', cache_file_path_full)
     invalidate_expired_entries()
@@ -95,7 +94,7 @@ def invalidate_expired_entries(as_of_date=None):
     if as_of_date is None:
         as_of_date = datetime.today()
 
-    expiry_date = as_of_date - timedelta(days=_EXPIRY_DAYS)
+    expiry_date = as_of_date - timedelta(days=__EXPIRY_DAYS)
     with open(index_name, 'r') as index_file:
         expired_keys = list()
         lines = index_file.readlines()
@@ -114,7 +113,7 @@ def invalidate_expired_entries(as_of_date=None):
 
 
 def is_cache_used():
-    return _CACHE_FILE_PATH is not None
+    return __CACHE_FILE_PATH is not None
 
 
 def _get_directories_under(path):
@@ -155,11 +154,11 @@ def rebalance_cache_tree(path, nodes_path=None):
 
     current_path = os.path.sep.join([path] + nodes_path)
     files_node = _get_files_under(current_path)
-    rebalancing_required = _generator_count(itertools.islice(files_node, _MAX_NODE_FILES + 1)) > _MAX_NODE_FILES
+    rebalancing_required = _generator_count(itertools.islice(files_node, __MAX_NODE_FILES + 1)) > __MAX_NODE_FILES
     if rebalancing_required:
         new_path_1, new_path_2 = _divide_node(path, nodes_path)
         logging.info('rebalancing required, creating nodes: %s and %s', os.path.abspath(new_path_1), os.path.abspath(new_path_2))
-        with _rebalancing:
+        with __rebalancing:
             logging.info('lock acquired: rebalancing started')
             if not os.path.exists(new_path_1):
                 os.makedirs(new_path_1)
@@ -185,7 +184,7 @@ def rebalance_cache_tree(path, nodes_path=None):
 
 def find_node(digest, path=None):
     if not path:
-        path = _CACHE_FILE_PATH
+        path = __CACHE_FILE_PATH
 
     directories = sorted(_get_directories_under(path))
 
@@ -241,11 +240,11 @@ def file_size(filename):
 
 
 def _index_name():
-    return os.path.sep.join([_CACHE_FILE_PATH, 'index'])
+    return os.path.sep.join([__CACHE_FILE_PATH, 'index'])
 
 
 def _add_to_cache(key, value):
-    _rebalancing.acquire()
+    __rebalancing.acquire()
     try:
         logging.debug('adding to cache: %s', key)
         filename = get_cache_filename(key)
@@ -265,30 +264,30 @@ def _add_to_cache(key, value):
                 index_file.write('%s %s: "%s"\n' % (today, filename_digest, key))
 
     finally:
-        _rebalancing.notify_all()
-        _rebalancing.release()
+        __rebalancing.notify_all()
+        __rebalancing.release()
 
-    if file_size(index_name) % _REBALANCING_LIMIT == 0:
+    if file_size(index_name) % __REBALANCING_LIMIT == 0:
         logging.debug('rebalancing cache')
-        rebalance_cache_tree(_CACHE_FILE_PATH)
+        rebalance_cache_tree(__CACHE_FILE_PATH)
 
 
 def _get_from_cache(key):
-    _rebalancing.acquire()
+    __rebalancing.acquire()
     try:
         logging.debug('reading from cache: %s', key)
         with open(get_cache_filename(key), 'r', encoding='utf-8') as cache_content:
             content = cache_content.read()
 
     finally:
-        _rebalancing.notify_all()
-        _rebalancing.release()
+        __rebalancing.notify_all()
+        __rebalancing.release()
 
     return content
 
 
 def _remove_from_cache_multiple(keys):
-    _rebalancing.acquire()
+    __rebalancing.acquire()
     try:
         index_name = _index_name()
         with open(index_name, 'r') as index_file:
@@ -309,8 +308,8 @@ def _remove_from_cache_multiple(keys):
             index_file.writelines(lines)
 
     finally:
-        _rebalancing.notify_all()
-        _rebalancing.release()
+        __rebalancing.notify_all()
+        __rebalancing.release()
 
 
 def _remove_from_cache(key):
@@ -345,7 +344,7 @@ def invalidate_key(key):
 
 def rebalance_cache():
     if is_cache_used():
-        rebalance_cache_tree(_CACHE_FILE_PATH)
+        rebalance_cache_tree(__CACHE_FILE_PATH)
 
 
 def empty_cache():
@@ -354,8 +353,8 @@ def empty_cache():
     :return:
     """
     if is_cache_used():
-        for node in os.listdir(_CACHE_FILE_PATH):
-            node_path = os.path.sep.join([_CACHE_FILE_PATH, node])
+        for node in os.listdir(__CACHE_FILE_PATH):
+            node_path = os.path.sep.join([__CACHE_FILE_PATH, node])
             if os.path.isfile(node_path):
                 os.remove(node_path)
 
@@ -374,17 +373,17 @@ def open_url(url, rejection_marker=None, throttle=None):
     :param throttle: waiting period before sending request
     :return: remote response as text
     """
-    global _requests_session
+    global __requests_session
 
-    if _requests_session is None:
-        _requests_session = requests.Session()
+    if __requests_session is None:
+        __requests_session = requests.Session()
 
     def inner_open_url(request_url):
         logging.debug('session cookies: %s', _requests_session.cookies)
         if throttle:
             sleep(throttle)
 
-        response = _requests_session.get(request_url, headers=_HEADERS_CHROME).text
+        response = _requests_session.get(request_url, headers=__HEADERS_CHROME).text
         if rejection_marker is not None and rejection_marker in response:
             raise RuntimeError('rejected, failed to load url %s', request_url)
 
