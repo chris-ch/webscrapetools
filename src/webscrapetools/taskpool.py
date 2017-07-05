@@ -8,6 +8,10 @@ class TaskPool(object):
     """
 
     def __init__(self, pool_size=5):
+        """
+
+        :param pool_size: number of processes included in the pool
+        """
         self._pool_size = pool_size
         self._pool = ThreadPool(pool_size)
         self._tasks_args = list()
