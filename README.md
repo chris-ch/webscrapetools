@@ -1,6 +1,28 @@
-A basic but threadsafe caching system...
+# A basic but persistent, threadsafe caching system
 
-Example usage:
+**Basic commands**
+
+Importing required modules first:
+
+    from webscrapetools import urlcaching
+ 
+Initializing the cache:
+
+    urlcaching.set_cache_path('.wst_cache')
+    
+This is a required step: otherwise responses to url calls will simply not be cached.
+Cache data are stored in the specified folder, so that re-using the same string makes the cache persistent.
+The following command cleans up the cache, making sure we start with no prior data:
+
+    urlcaching.empty_cache()
+    
+Opening an url with the following command stores the repsonse content behind the scene, so that subsequent calls will
+not hit the network.
+
+    urlcaching.open_url('http://www.google.com')
+    
+    
+**Full example**
 
     from webscrapetools import urlcaching
     import time
