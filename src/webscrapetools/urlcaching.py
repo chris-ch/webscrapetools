@@ -379,11 +379,11 @@ def open_url(url, rejection_marker=None, throttle=None):
         __requests_session = requests.Session()
 
     def inner_open_url(request_url):
-        logging.debug('session cookies: %s', _requests_session.cookies)
+        logging.debug('session cookies: %s', __requests_session.cookies)
         if throttle:
             sleep(throttle)
 
-        response = _requests_session.get(request_url, headers=__HEADERS_CHROME).text
+        response = __requests_session.get(request_url, headers=__HEADERS_CHROME).text
         if rejection_marker is not None and rejection_marker in response:
             raise RuntimeError('rejected, failed to load url %s', request_url)
 
