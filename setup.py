@@ -8,7 +8,7 @@ def readme():
 setup(
     name='webscrapetools',
     version='0.4',
-    description='A basic but threadsafe caching system',
+    description='A basic but fast, persistent and threadsafe caching system',
     long_description=readme(),
     url='https://github.com/chris-ch/webscrapetools',
     author='Christophe',
@@ -16,6 +16,7 @@ setup(
     packages=['webscrapetools'],
     package_dir={'webscrapetools': 'src/webscrapetools'},
     license='Apache',
+    download_url='https://github.com/chris-ch/webscrapetools/webscrapetools/archive/0.4.tar.gz',
     install_requires=[
         'requests',
     ],
