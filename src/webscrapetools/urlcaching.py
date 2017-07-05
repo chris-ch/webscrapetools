@@ -5,12 +5,14 @@ As opposed to requests_cache it should be able to handle multithreading.
 The line below enables caching and sets the cached files path:
     >>> set_cache_path('./example-cache')
     >>> first_call_response = open_url('https://www.google.ch/search?q=what+time+is+it')
+
 Subsequent calls for the same URL returns the cached data:
     >>> import time
     >>> time.sleep(60)
     >>> second_call_response = open_url('https://www.google.ch/search?q=what+time+is+it')
     >>> first_call_response == second_call_response
     True
+
 TODO: validity period for cache content
 """
 import logging
@@ -37,8 +39,28 @@ _HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1
 _rebalancing = threading.Condition()
 _requests_session = None
 
+__all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached']
+
+
+def get_requests_session():
+    """
+    Underlying requests session.
+
+    :return:
+    """
+    return _requests_session
+
 
 def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None, expiry_days=10):
+    """
+    Required for enabling caching.
+
+    :param cache_file_path:
+    :param max_node_files:
+    :param rebalancing_limit:
+    :param expiry_days:
+    :return:
+    """
     global _CACHE_FILE_PATH
     global _MAX_NODE_FILES
     global _REBALANCING_LIMIT
@@ -184,6 +206,11 @@ def find_node(digest, path=None):
 
 
 def get_cache_filename(key):
+    """
+
+    :param key: text uniquely identifying the associated content (typically a full url)
+    :return: hashed version of the input key
+    """
     key = str(key)
     hash_md5 = hashlib.md5()
     hash_md5.update(key.encode('utf-8'))
@@ -194,6 +221,12 @@ def get_cache_filename(key):
 
 
 def is_cached(key):
+    """
+    Checks if specified cache key (typically a full url) corresponds to an entry in the cache.
+
+    :param key:
+    :return:
+    """
     cache_filename = get_cache_filename(key)
     return os.path.exists(cache_filename)
 
@@ -316,6 +349,10 @@ def rebalance_cache():
 
 
 def empty_cache():
+    """
+    Removing cache content.
+    :return:
+    """
     if is_cache_used():
         for node in os.listdir(_CACHE_FILE_PATH):
             node_path = os.path.sep.join([_CACHE_FILE_PATH, node])
@@ -330,6 +367,13 @@ def empty_cache():
 
 
 def open_url(url, rejection_marker=None, throttle=None):
+    """
+    Opens specified url. Caching is used if initialized with set_cache_path().
+    :param url: target url
+    :param rejection_marker: raises error if response contains specified marker
+    :param throttle: waiting period before sending request
+    :return: remote response as text
+    """
     global _requests_session
 
     if _requests_session is None:
