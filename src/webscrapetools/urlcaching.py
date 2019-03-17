@@ -37,6 +37,7 @@ __HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_
 
 __rebalancing = threading.Condition()
 __requests_session = None
+__last_request = None
 
 __all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached']
 
@@ -48,6 +49,15 @@ def get_requests_session():
     :return:
     """
     return __requests_session
+
+
+def get_last_request():
+    """
+    Last request.
+
+    :return:
+    """
+    return __last_request
 
 
 def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None, expiry_days=10):
@@ -379,15 +389,18 @@ def open_url(url, rejection_marker=None, throttle=None):
         __requests_session = requests.Session()
 
     def inner_open_url(request_url):
+        global __last_request
         logging.debug('session cookies: %s', __requests_session.cookies)
         if throttle:
             sleep(throttle)
 
-        response = __requests_session.get(request_url, headers=__HEADERS_CHROME).text
-        if rejection_marker is not None and rejection_marker in response:
+        response = __requests_session.get(request_url, headers=__HEADERS_CHROME)
+        response_text = response.text
+        __last_request = response.request
+        if rejection_marker is not None and rejection_marker in response_text:
             raise RuntimeError('rejected, failed to load url %s', request_url)
 
-        return response
+        return response_text
 
     content = read_cached(inner_open_url, url)
     return content
