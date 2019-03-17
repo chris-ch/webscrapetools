@@ -16,7 +16,7 @@ setup(
     packages=['webscrapetools'],
     package_dir={'webscrapetools': 'src/webscrapetools'},
     license='Apache',
-    download_url='https://github.com/chris-ch/webscrapetools/webscrapetools/archive/0.4.tar.gz',
+    download_url='https://github.com/chris-ch/webscrapetools/webscrapetools/archive/0.4.1.tar.gz',
     install_requires=[
         'requests',
     ],
