@@ -405,7 +405,7 @@ def open_url(url, rejection_marker=None, throttle=None, init_client_func=None, c
             __last_request = response.request
 
         else:
-            response_text, __last_request = call_client_func(__web_client)
+            response_text, __last_request = call_client_func(__web_client, request_url)
 
         if rejection_marker is not None and rejection_marker in response_text:
             raise RuntimeError('rejected, failed to load url %s', request_url)
