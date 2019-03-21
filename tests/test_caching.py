@@ -61,6 +61,7 @@ class TestUrlCaching(unittest.TestCase):
     def tearDown(self):
         empty_cache()
 
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s:%(name)s:%(levelname)s:%(message)s')
     unittest.main()

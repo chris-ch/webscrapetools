@@ -36,19 +36,19 @@ __HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_
 
 
 __rebalancing = threading.Condition()
-__requests_session = None
+__web_client = None
 __last_request = None
 
 __all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached']
 
 
-def get_requests_session():
+def get_web_client():
     """
     Underlying requests session.
 
     :return:
     """
-    return __requests_session
+    return __web_client
 
 
 def get_last_request():
@@ -375,28 +375,38 @@ def empty_cache():
             os.remove(_index_name())
 
 
-def open_url(url, rejection_marker=None, throttle=None):
+def open_url(url, rejection_marker=None, throttle=None, init_client_func=None, call_client_func=None):
     """
     Opens specified url. Caching is used if initialized with set_cache_path().
     :param url: target url
     :param rejection_marker: raises error if response contains specified marker
     :param throttle: waiting period before sending request
+    :param init_client_func(): function that returns a web client instance
+    :param call_client_func(web_client): function that handles a call through the web client and returns (response content, last request)
     :return: remote response as text
     """
-    global __requests_session
+    global __web_client
 
-    if __requests_session is None:
-        __requests_session = requests.Session()
+    if __web_client is None:
+        if init_client_func is None:
+            __web_client = requests.Session()
+
+        else:
+            __web_client = init_client_func()
 
     def inner_open_url(request_url):
         global __last_request
-        logging.debug('session cookies: %s', __requests_session.cookies)
         if throttle:
             sleep(throttle)
 
-        response = __requests_session.get(request_url, headers=__HEADERS_CHROME)
-        response_text = response.text
-        __last_request = response.request
+        if call_client_func is None:
+            response = __web_client.get(request_url, headers=__HEADERS_CHROME)
+            response_text = response.text
+            __last_request = response.request
+
+        else:
+            response_text, __last_request = call_client_func(__web_client)
+
         if rejection_marker is not None and rejection_marker in response_text:
             raise RuntimeError('rejected, failed to load url %s', request_url)
 
