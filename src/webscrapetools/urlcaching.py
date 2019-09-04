@@ -29,8 +29,10 @@ import hashlib
 
 from webscrapetools.osaccess import create_path_if_not_exists, exists_path, build_file_path, file_size, \
     get_file_from_filepath, remove_file, get_files_under_path, remove_file_if_exists, remove_all_under_path, \
-    get_files_under, get_directories_under, build_directory_path, rename_path, create_new_filepath, load_file_content, \
-    process_file_by_line, save_lines, save_content, append_content, load_file_lines
+    gen_files_under, gen_directories_under, build_directory_path, rename_path, create_new_filepath, load_file_content, \
+    process_file_by_line, save_lines, save_content, append_content, load_file_lines, merge_directory_paths
+
+_CACHE_INDEX_NAME = 'index'
 
 __CACHE_FILE_PATH = None
 __EXPIRY_DAYS = None
@@ -161,12 +163,12 @@ def _divide_node(path: str, nodes_path: MutableSequence[str]) -> Tuple[str, str]
     return new_path_1, new_path_2
 
 
-def rebalance_cache_tree(path, nodes_path=None):
+def rebalance_cache_tree(path: str, nodes_path: List[str]=None):
     if not nodes_path:
         nodes_path = list()
 
-    current_path = build_directory_path(path, nodes_path)
-    files_node = get_files_under(current_path)
+    current_path = merge_directory_paths([path], nodes_path)
+    files_node = (node for node in gen_files_under(current_path) if node != _CACHE_INDEX_NAME)
     rebalancing_required = _generator_count(itertools.islice(files_node, _get_max_node_files() + 1)) > _get_max_node_files()
     if rebalancing_required:
         new_path_1, new_path_2 = _divide_node(path, nodes_path)
@@ -176,7 +178,7 @@ def rebalance_cache_tree(path, nodes_path=None):
             create_path_if_not_exists(new_path_1)
             create_path_if_not_exists(new_path_2)
 
-            for filename in get_files_under(current_path):
+            for filename in (node for node in gen_files_under(current_path) if node != _CACHE_INDEX_NAME):
                 file_path = build_file_path(current_path, filename)
                 if file_path <= new_path_1:
                     logging.debug('moving %s to %s', filename, new_path_1)
@@ -188,7 +190,7 @@ def rebalance_cache_tree(path, nodes_path=None):
 
         logging.info('lock released: rebalancing completed')
 
-    for directory in get_directories_under(current_path):
+    for directory in gen_directories_under(current_path):
         rebalance_cache_tree(path, nodes_path + [directory])
 
 
@@ -196,7 +198,7 @@ def find_node(digest: str, path=None):
     if not path:
         path = _get_cache_file_path()
 
-    directories = get_directories_under(path)
+    directories = gen_directories_under(path)
 
     if not directories:
         return path
@@ -218,7 +220,7 @@ def get_cache_filename(key: object) -> str:
     """
 
     :param key: text uniquely identifying the associated content (typically a full url)
-    :return: hashed version of the input key
+    :return: unique path based on hashed version of the input key
     """
     key = repr(key)
     hash_md5 = hashlib.md5()
@@ -241,7 +243,7 @@ def is_cached(key):
 
 
 def _fileindex_name():
-    return build_file_path(_get_cache_file_path(), 'index')
+    return build_file_path(_get_cache_file_path(), _CACHE_INDEX_NAME)
 
 
 def _add_to_cache(key, value):

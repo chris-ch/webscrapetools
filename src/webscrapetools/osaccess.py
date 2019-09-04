@@ -1,10 +1,10 @@
 import os
 from shutil import rmtree
 import logging
-from typing import Iterable
+from typing import Iterable, Sequence, List
 
 
-class Path(str):
+class Path(object):
     pass
 
 
@@ -14,6 +14,20 @@ class FilePath(Path):
 
 class DirectoryPath(Path):
     pass
+
+
+class _OSFilePath(FilePath):
+
+    def __init__(self, path: str):
+        FilePath.__init__(self)
+        self._path = path
+
+
+class _OSDirectoryPath(DirectoryPath):
+
+    def __init__(self, path: str):
+        DirectoryPath.__init__(self)
+        self._path = path
 
 
 def create_path_if_not_exists(path: str) -> str:
@@ -36,12 +50,16 @@ def exists_path(filename: str) -> bool:
     return os.path.exists(filename)
 
 
-def build_file_path(path, filename):
+def build_file_path(path: str, filename) -> str:
     return os.path.sep.join([path, filename])
 
 
 def build_directory_path(path, filename):
     return os.path.sep.join([path, filename])
+
+
+def merge_directory_paths(path_first: List[str], path_next: List[str]):
+    return os.path.sep.join(path_first + path_next)
 
 
 def file_size(filename):
@@ -83,12 +101,12 @@ def remove_all_under_path(path):
         rmtree(path, ignore_errors=True)
 
 
-def get_directories_under(path):
+def gen_directories_under(path):
     return sorted(node for node in os.listdir(path) if os.path.isdir(os.path.join(path, node)))
 
 
-def get_files_under(path):
-    return (node for node in os.listdir(path) if os.path.isfile(os.path.join(path, node)) and node != 'index')
+def gen_files_under(path):
+    return sorted(node for node in os.listdir(path) if os.path.isfile(os.path.join(path, node)))
 
 
 def load_file_content(filepath, encoding='utf-8'):

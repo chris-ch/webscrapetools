@@ -5,10 +5,11 @@ import unittest
 from datetime import datetime
 from datetime import timedelta
 
+from webscrapetools.osaccess import gen_directories_under, gen_files_under
 from webscrapetools.taskpool import TaskPool
 
 from webscrapetools.urlcaching import set_cache_path, read_cached, empty_cache, invalidate_expired_entries, is_cached, \
-    get_cache_filename
+    get_cache_filename, open_url
 
 
 class TestUrlCaching(unittest.TestCase):
@@ -41,6 +42,9 @@ class TestUrlCaching(unittest.TestCase):
         set_cache_path(test_output_dir, max_node_files=400, rebalancing_limit=1000, expiry_days=3)
         empty_cache()
 
+        self.assertEqual(len(list(gen_directories_under(test_output_dir))), 0)
+        self.assertEqual(len(list(gen_files_under(test_output_dir))), 0)
+
         def read_random_value(key):
             return 'content for key %s: %s' % (key, random.randint(1, 100000))
 
@@ -59,12 +63,30 @@ class TestUrlCaching(unittest.TestCase):
         self.assertFalse(is_cached('ghf'))
 
         empty_cache()
+        self.assertEqual(len(list(gen_directories_under(test_output_dir))), 0)
+        self.assertEqual(len(list(gen_files_under(test_output_dir))), 0)
 
     def test_cache_entry(self):
         set_cache_path('./output/tests', max_node_files=400, rebalancing_limit=1000)
         empty_cache()
         value = get_cache_filename('my content')
         self.assertEqual(value, os.path.abspath('output/tests/bc4e44260919ea00a59f7a9dc75e73e3'))
+        empty_cache()
+
+    def test_cache_example(self):
+        set_cache_path('./output/tests', max_node_files=10, rebalancing_limit=100)
+        keys = ('{:05d}'.format(count) for count in range(500))
+
+        def dummy_client():
+            return None
+
+        def dummy_call(_, key):
+            return '{:d}'.format(int(key)) * int(key), key
+
+        for key in keys:
+            open_url(key, init_client_func=dummy_client, call_client_func=dummy_call)
+
+        empty_cache()
 
     def tearDown(self):
         empty_cache()
