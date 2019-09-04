@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 __version = '0.4.4'
 
-INSTALL_REQUIRE = ['requests==2.18.1']
+INSTALL_REQUIRE = ['requests>=2.20.0']
 
 setup(
     name='webscrapetools',
