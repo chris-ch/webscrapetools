@@ -1,5 +1,7 @@
 # A basic but fast, persistent and threadsafe caching system
 
+This package lets you efficiently retrieve pages from the Internet by caching request's results.
+
 **Basic commands**
 
 Importing required modules first:
