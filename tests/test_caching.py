@@ -5,10 +5,11 @@ import unittest
 from datetime import datetime
 from datetime import timedelta
 
+from webscrapetools.keyvalue import invalidate_expired_entries
 from webscrapetools.osaccess import gen_directories_under, gen_files_under
 from webscrapetools.taskpool import TaskPool
 
-from webscrapetools.urlcaching import set_cache_path, read_cached, empty_cache, invalidate_expired_entries, is_cached, \
+from webscrapetools.urlcaching import set_cache_path, read_cached, empty_cache, is_cached, \
     get_cache_filename, open_url
 
 
