@@ -15,7 +15,6 @@ Subsequent calls for the same URL returns the cached data:
 
 """
 import logging
-import os
 
 import itertools
 import threading
@@ -26,7 +25,11 @@ from time import sleep
 import requests
 import hashlib
 
-from shutil import rmtree
+
+from webscrapetools.osaccess import create_path_if_not_exists, exists_path, build_file_path, file_size, \
+    get_file_from_filepath, remove_file, get_files_under_path, remove_file_if_exists, remove_all_under_path, \
+    get_files_under, get_directories_under, build_directory_path, rename_path, create_new_filepath, load_file_content, \
+    process_file_by_line
 
 __CACHE_FILE_PATH = None
 __EXPIRY_DAYS = None
@@ -83,12 +86,8 @@ def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None,
     if rebalancing_limit is not None:
         __REBALANCING_LIMIT = rebalancing_limit
 
-    cache_file_path_full = os.path.abspath(cache_file_path)
-    __CACHE_FILE_PATH = cache_file_path_full
-    if not os.path.exists(__CACHE_FILE_PATH):
-        os.makedirs(__CACHE_FILE_PATH)
-
-    logging.debug('setting cache path: %s', cache_file_path_full)
+    __CACHE_FILE_PATH = create_path_if_not_exists(cache_file_path)
+    logging.debug('setting cache path: %s', __CACHE_FILE_PATH)
     invalidate_expired_entries()
 
 
@@ -97,43 +96,34 @@ def invalidate_expired_entries(as_of_date=None):
     :param as_of_date: fake current date (for dev only)
     :return:
     """
-    index_name = _index_name()
-    if not os.path.exists(index_name):
+    global __EXPIRY_DAYS
+
+    index_name = _fileindex_name()
+
+    if not exists_path(index_name):
         return
 
     if as_of_date is None:
         as_of_date = datetime.today()
 
     expiry_date = as_of_date - timedelta(days=__EXPIRY_DAYS)
-    with open(index_name, 'r') as index_file:
-        expired_keys = list()
-        lines = index_file.readlines()
-        for line in lines:
-            if len(line.strip()) == 0:
-                continue
 
-            yyyymmdd, key_md5, key_commas = line.strip().split(' ')
-            key = key_commas[1:-1]
-            key_date = datetime.strptime(yyyymmdd, '%Y%m%d')
-            if expiry_date > key_date:
-                logging.debug('expired entry for key "%s" (%s)', key_md5[:-1], key)
-                expired_keys.append(key)
+    expired_keys = list()
 
+    def gather_expired_keys(line):
+        yyyymmdd, key_md5, key_commas = line.strip().split(' ')
+        key = key_commas[1:-1]
+        key_date = datetime.strptime(yyyymmdd, '%Y%m%d')
+        if expiry_date > key_date:
+            logging.debug('expired entry for key "%s" (%s)', key_md5[:-1], key)
+            expired_keys.append(key)
+
+    process_file_by_line(index_name, line_processor=gather_expired_keys)
     _remove_from_cache_multiple(expired_keys)
 
 
 def is_cache_used():
     return __CACHE_FILE_PATH is not None
-
-
-def _get_directories_under(path):
-    return (node for node in os.listdir(path) if os.path.isdir(os.path.join(path, node)))
-
-
-def _get_files_under(path):
-    return (node for node in os.listdir(path)
-            if os.path.isfile(os.path.join(path, node)) and node != 'index'
-            )
 
 
 def _generator_count(a_generator):
@@ -153,42 +143,39 @@ def _divide_node(path, nodes_path):
         new_node_sup = new_node_sup_init
         new_node_inf = new_node_inf_init
 
-    new_path_1 = os.path.sep.join([path] + nodes_path + [new_node_inf.lower()])
-    new_path_2 = os.path.sep.join([path] + nodes_path + [new_node_sup.lower()])
-    return os.path.abspath(new_path_1), os.path.abspath(new_path_2)
+    new_path_1 = create_new_filepath(path, nodes_path, new_node_inf.lower())
+    new_path_2 = create_new_filepath(path, nodes_path, new_node_sup.lower())
+    return new_path_1, new_path_2
 
 
 def rebalance_cache_tree(path, nodes_path=None):
     if not nodes_path:
         nodes_path = list()
 
-    current_path = os.path.sep.join([path] + nodes_path)
-    files_node = _get_files_under(current_path)
+    current_path = build_directory_path(path, nodes_path)
+    files_node = get_files_under(current_path)
     rebalancing_required = _generator_count(itertools.islice(files_node, __MAX_NODE_FILES + 1)) > __MAX_NODE_FILES
     if rebalancing_required:
         new_path_1, new_path_2 = _divide_node(path, nodes_path)
-        logging.info('rebalancing required, creating nodes: %s and %s', os.path.abspath(new_path_1), os.path.abspath(new_path_2))
+        logging.info('rebalancing required, creating nodes: %s and %s', new_path_1, new_path_2)
         with __rebalancing:
             logging.info('lock acquired: rebalancing started')
-            if not os.path.exists(new_path_1):
-                os.makedirs(new_path_1)
+            create_path_if_not_exists(new_path_1)
+            create_path_if_not_exists(new_path_2)
 
-            if not os.path.exists(new_path_2):
-                os.makedirs(new_path_2)
-
-            for filename in _get_files_under(current_path):
-                file_path = os.path.sep.join([current_path, filename])
+            for filename in get_files_under(current_path):
+                file_path = build_file_path(current_path, filename)
                 if file_path <= new_path_1:
                     logging.debug('moving %s to %s', filename, new_path_1)
-                    os.rename(file_path, os.path.sep.join([new_path_1, filename]))
+                    rename_path(file_path, build_file_path(new_path_1, filename))
 
                 else:
                     logging.debug('moving %s to %s', filename, new_path_2)
-                    os.rename(file_path, os.path.sep.join([new_path_2, filename]))
+                    rename_path(file_path, build_file_path(new_path_2, filename))
 
         logging.info('lock released: rebalancing completed')
 
-    for directory in _get_directories_under(current_path):
+    for directory in get_directories_under(current_path):
         rebalance_cache_tree(path, nodes_path + [directory])
 
 
@@ -196,7 +183,7 @@ def find_node(digest, path=None):
     if not path:
         path = __CACHE_FILE_PATH
 
-    directories = sorted(_get_directories_under(path))
+    directories = sorted(get_directories_under(path))
 
     if not directories:
         return path
@@ -211,7 +198,7 @@ def find_node(digest, path=None):
         if not target_directory:
             raise Exception('Inconsistent cache tree: expected directory "%s" not found', target_directory)
 
-        return find_node(digest, path=os.path.sep.join([path, target_directory]))
+        return find_node(digest, path=build_directory_path(path, target_directory))
 
 
 def get_cache_filename(key):
@@ -225,7 +212,7 @@ def get_cache_filename(key):
     hash_md5.update(key.encode('utf-8'))
     digest = hash_md5.hexdigest()
     target_node = find_node(digest)
-    cache_filename = os.sep.join([target_node, digest])
+    cache_filename = build_file_path(target_node, digest)
     return cache_filename
 
 
@@ -237,20 +224,11 @@ def is_cached(key):
     :return:
     """
     cache_filename = get_cache_filename(key)
-    return os.path.exists(cache_filename)
+    return exists_path(cache_filename)
 
 
-def file_size(filename):
-    count = -1
-    with open(filename) as file_lines:
-        for count, line in enumerate(file_lines):
-            pass
-
-    return count + 1
-
-
-def _index_name():
-    return os.path.sep.join([__CACHE_FILE_PATH, 'index'])
+def _fileindex_name():
+    return build_file_path(__CACHE_FILE_PATH, 'index')
 
 
 def _add_to_cache(key, value):
@@ -258,19 +236,19 @@ def _add_to_cache(key, value):
     try:
         logging.debug('adding to cache: %s', key)
         filename = get_cache_filename(key)
-        index_name = _index_name()
+        index_name = _fileindex_name()
         today = datetime.today().strftime('%Y%m%d')
         with open(filename, 'w', encoding='utf-8') as cache_content:
             cache_content.write(value)
 
-        if not os.path.exists(index_name):
+        if not exists_path(index_name):
             with open(index_name, 'w') as index_file:
-                filename_digest = filename.split(os.path.sep)[-1]
+                filename_digest = get_file_from_filepath(filename)
                 index_file.write('%s %s: "%s"\n' % (today, filename_digest, key))
 
         else:
             with open(index_name, 'a') as index_file:
-                filename_digest = filename.split(os.path.sep)[-1]
+                filename_digest = get_file_from_filepath(filename)
                 index_file.write('%s %s: "%s"\n' % (today, filename_digest, key))
 
     finally:
@@ -286,9 +264,7 @@ def _get_from_cache(key):
     __rebalancing.acquire()
     try:
         logging.debug('reading from cache: %s', key)
-        with open(get_cache_filename(key), 'r', encoding='utf-8') as cache_content:
-            content = cache_content.read()
-
+        content = load_file_content(get_cache_filename(key), encoding='utf-8')
     finally:
         __rebalancing.notify_all()
         __rebalancing.release()
@@ -299,19 +275,14 @@ def _get_from_cache(key):
 def _remove_from_cache_multiple(keys):
     __rebalancing.acquire()
     try:
-        index_name = _index_name()
+        index_name = _fileindex_name()
         with open(index_name, 'r') as index_file:
             lines = index_file.readlines()
             for key in keys:
                 filename = get_cache_filename(key)
-                filename_digest = filename.split(os.path.sep)[-1]
+                filename_digest = get_file_from_filepath(filename)
                 logging.info('removing key %s from cache' % key)
-                try:
-                    os.remove(filename)
-
-                except FileNotFoundError:
-                    logging.warning('corrupted cache index: broken reference to file %s', filename)
-
+                remove_file(filename)
                 lines = [line for line in lines if line.split(' ')[1] != filename_digest + ':']
 
         with open(index_name, 'w') as index_file:
@@ -362,17 +333,14 @@ def empty_cache():
     Removing cache content.
     :return:
     """
+    global __CACHE_FILE_PATH
+
     if is_cache_used():
-        for node in os.listdir(__CACHE_FILE_PATH):
-            node_path = os.path.sep.join([__CACHE_FILE_PATH, node])
-            if os.path.isfile(node_path):
-                os.remove(node_path)
+        for node in get_files_under_path(__CACHE_FILE_PATH):
+            node_path = build_file_path(__CACHE_FILE_PATH, node)
+            remove_all_under_path(node_path)
 
-            else:
-                rmtree(node_path, ignore_errors=True)
-
-        if os.path.exists(_index_name()):
-            os.remove(_index_name())
+        remove_file_if_exists(_fileindex_name())
 
 
 def open_url(url, rejection_marker=None, throttle=None, init_client_func=None, call_client_func=None):
