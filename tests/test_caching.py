@@ -6,7 +6,7 @@ from datetime import datetime
 from datetime import timedelta
 
 from webscrapetools.keyvalue import invalidate_expired_entries, set_store_path, add_to_store, retrieve_from_store, \
-    remove_from_store, list_keys
+    remove_from_store, list_keys, empty_store
 from webscrapetools.osaccess import gen_directories_under, gen_files_under
 from webscrapetools.taskpool import TaskPool
 
@@ -105,7 +105,7 @@ class TestUrlCaching(unittest.TestCase):
 
         keys = list_keys()
         self.assertListEqual(sorted(list(filter(lambda x: x != '30', map(str, range(100))))), keys)
-        empty_cache()
+        empty_store()
 
     def tearDown(self):
         empty_cache()
