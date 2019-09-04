@@ -19,7 +19,7 @@ from time import sleep
 
 import requests
 
-from webscrapetools.keyvalue import set_store_path, empty_store, get_store_id, remove_store_key, \
+from webscrapetools.keyvalue import set_store_path, empty_store, get_store_id, remove_from_store, \
     has_store_key, is_store_enabled, add_to_store, retrieve_from_store
 
 __HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
@@ -37,7 +37,8 @@ def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None,
 
 
 def invalidate_key(key):
-    remove_store_key(key)
+    if is_cached(key):
+        remove_from_store(key)
 
 
 def empty_cache():

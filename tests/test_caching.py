@@ -5,7 +5,8 @@ import unittest
 from datetime import datetime
 from datetime import timedelta
 
-from webscrapetools.keyvalue import invalidate_expired_entries
+from webscrapetools.keyvalue import invalidate_expired_entries, set_store_path, add_to_store, retrieve_from_store, \
+    remove_from_store
 from webscrapetools.osaccess import gen_directories_under, gen_files_under
 from webscrapetools.taskpool import TaskPool
 
@@ -86,6 +87,21 @@ class TestUrlCaching(unittest.TestCase):
         keys = ('{:05d}'.format(count) for count in range(500))
         for key in keys:
             open_url(key, init_client_func=dummy_client, call_client_func=dummy_call)
+
+        empty_cache()
+
+    def test_store(self):
+        set_store_path('./output/tests', max_node_files=10, rebalancing_limit=100)
+        for count in range(1000):
+            add_to_store(count, str(count))
+
+        value = retrieve_from_store(300)
+        self.assertEqual(value, '300')
+        remove_from_store(300)
+        value = retrieve_from_store(300)
+        self.assertIsNone(value)
+        with self.assertRaises(Exception) as _:
+            retrieve_from_store(300, fail_on_missing=True)
 
         empty_cache()
 

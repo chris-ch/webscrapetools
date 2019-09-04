@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 
 __all__ = ['set_store_path', 'invalidate_expired_entries', 'is_store_enabled', 'has_store_key', 'get_store_id',
-           'add_to_store', 'retrieve_from_store', 'remove_store_key', 'empty_store']
+           'add_to_store', 'retrieve_from_store', 'remove_from_store', 'empty_store']
 
 __rebalancing = threading.Condition()
 __STORE_INDEX_NAME = 'index'
@@ -34,7 +34,7 @@ def _get_max_node_files() -> int:
     return __MAX_NODE_FILES
 
 
-def set_store_path(store_path, max_node_files=None, rebalancing_limit=None, expiry_days=10):
+def set_store_path(store_path, max_node_files=None, rebalancing_limit=None, expiry_days=None):
     """
     Required for enabling caching.
 
@@ -87,7 +87,7 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
             expired_keys.append(key)
 
     osaccess.process_file_by_line(index_name, line_processor=gather_expired_keys)
-    _remove_from_store_multiple(expired_keys)
+    remove_from_store_multiple(expired_keys)
 
 
 def is_store_enabled() -> bool:
@@ -197,7 +197,7 @@ def _fileindex_name():
     return osaccess.build_file_path(_get_store_path(), __STORE_INDEX_NAME)
 
 
-def add_to_store(key, value):
+def add_to_store(key: object, value: str) -> None:
     __rebalancing.acquire()
     try:
         logging.debug('adding to store: %s', key)
@@ -218,11 +218,23 @@ def add_to_store(key, value):
         _rebalance_store_tree(_get_store_path())
 
 
-def retrieve_from_store(key):
+def retrieve_from_store(key: object, fail_on_missing: bool=False) -> str:
     __rebalancing.acquire()
     try:
         logging.debug('reading from store: %s', key)
-        content = osaccess.load_file_content(get_store_id(key), encoding='utf-8')
+        if osaccess.exists_path(get_store_id(key)):
+            content = osaccess.load_file_content(get_store_id(key), encoding='utf-8')
+
+        else:
+            if fail_on_missing:
+                raise KeyError('store has no such key: "{}"'.format(key))
+
+            else:
+                content = None
+
+    except FileNotFoundError:
+        content = None
+
     finally:
         __rebalancing.notify_all()
         __rebalancing.release()
@@ -230,7 +242,7 @@ def retrieve_from_store(key):
     return content
 
 
-def _remove_from_store_multiple(keys):
+def remove_from_store_multiple(keys):
     __rebalancing.acquire()
     try:
         index_name = _fileindex_name()
@@ -250,13 +262,8 @@ def _remove_from_store_multiple(keys):
         __rebalancing.release()
 
 
-def _remove_from_store(key):
-    _remove_from_store_multiple([key])
-
-
-def remove_store_key(key):
-    if is_store_enabled():
-        _remove_from_store(key)
+def remove_from_store(key):
+    remove_from_store_multiple([key])
 
 
 def empty_store():
@@ -269,5 +276,4 @@ def empty_store():
             node_path = osaccess.build_file_path(_get_store_path(), node)
             osaccess.remove_all_under_path(node_path)
 
-        osaccess.remove_file_if_exists(_fileindex_name())
-
+    osaccess.remove_file_if_exists(_fileindex_name())
