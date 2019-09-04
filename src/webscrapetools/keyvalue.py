@@ -8,17 +8,20 @@ from webscrapetools import osaccess
 from datetime import datetime, timedelta
 
 
+__all__ = ['set_store_path', 'invalidate_expired_entries', 'is_store_enabled', 'has_store_key', 'get_store_id',
+           'add_to_store', 'retrieve_from_store', 'remove_store_key', 'empty_store']
+
 __rebalancing = threading.Condition()
-__CACHE_INDEX_NAME = 'index'
-__CACHE_FILE_PATH = None
+__STORE_INDEX_NAME = 'index'
+__STORE_PATH = None
 __EXPIRY_DAYS = None
 __MAX_NODE_FILES = 0x100
 __REBALANCING_LIMIT = 0x200
 
 
-def _get_cache_file_path():
-    global __CACHE_FILE_PATH
-    return __CACHE_FILE_PATH
+def _get_store_path():
+    global __STORE_PATH
+    return __STORE_PATH
 
 
 def _get_expiry_days() -> int:
@@ -41,7 +44,7 @@ def set_store_path(store_path, max_node_files=None, rebalancing_limit=None, expi
     :param expiry_days:
     :return:
     """
-    global __CACHE_FILE_PATH
+    global __STORE_PATH
     global __MAX_NODE_FILES
     global __REBALANCING_LIMIT
     global __EXPIRY_DAYS
@@ -54,8 +57,8 @@ def set_store_path(store_path, max_node_files=None, rebalancing_limit=None, expi
     if rebalancing_limit is not None:
         __REBALANCING_LIMIT = rebalancing_limit
 
-    __CACHE_FILE_PATH = osaccess.create_path_if_not_exists(store_path)
-    logging.debug('setting cache path: %s', __CACHE_FILE_PATH)
+    __STORE_PATH = osaccess.create_path_if_not_exists(store_path)
+    logging.debug('setting store path: %s', __STORE_PATH)
     invalidate_expired_entries()
 
 
@@ -84,11 +87,11 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
             expired_keys.append(key)
 
     osaccess.process_file_by_line(index_name, line_processor=gather_expired_keys)
-    _remove_from_cache_multiple(expired_keys)
+    _remove_from_store_multiple(expired_keys)
 
 
-def is_cache_used() -> bool:
-    return _get_cache_file_path() is not None
+def is_store_enabled() -> bool:
+    return _get_store_path() is not None
 
 
 def _generator_count(a_generator: Iterable) -> int:
@@ -113,12 +116,12 @@ def _divide_node(path: str, nodes_path: MutableSequence[str]) -> Tuple[str, str]
     return new_path_1, new_path_2
 
 
-def rebalance_cache_tree(path: str, nodes_path: List[str]=None):
+def _rebalance_store_tree(path: str, nodes_path: List[str]=None):
     if not nodes_path:
         nodes_path = list()
 
     current_path = osaccess.merge_directory_paths([path], nodes_path)
-    files_node = (node for node in osaccess.gen_files_under(current_path) if node != __CACHE_INDEX_NAME)
+    files_node = (node for node in osaccess.gen_files_under(current_path) if node != __STORE_INDEX_NAME)
     rebalancing_required = _generator_count(itertools.islice(files_node, _get_max_node_files() + 1)) > _get_max_node_files()
     if rebalancing_required:
         new_path_1, new_path_2 = _divide_node(path, nodes_path)
@@ -128,7 +131,7 @@ def rebalance_cache_tree(path: str, nodes_path: List[str]=None):
             osaccess.create_path_if_not_exists(new_path_1)
             osaccess.create_path_if_not_exists(new_path_2)
 
-            for filename in (node for node in osaccess.gen_files_under(current_path) if node != __CACHE_INDEX_NAME):
+            for filename in (node for node in osaccess.gen_files_under(current_path) if node != __STORE_INDEX_NAME):
                 file_path = osaccess.build_file_path(current_path, filename)
                 if file_path <= new_path_1:
                     logging.debug('moving %s to %s', filename, new_path_1)
@@ -141,12 +144,12 @@ def rebalance_cache_tree(path: str, nodes_path: List[str]=None):
         logging.info('lock released: rebalancing completed')
 
     for directory in osaccess.gen_directories_under(current_path):
-        rebalance_cache_tree(path, nodes_path + [directory])
+        _rebalance_store_tree(path, nodes_path + [directory])
 
 
-def find_node(digest: str, path=None):
+def _find_node(digest: str, path=None):
     if not path:
-        path = _get_cache_file_path()
+        path = _get_store_path()
 
     directories = osaccess.gen_directories_under(path)
 
@@ -161,9 +164,9 @@ def find_node(digest: str, path=None):
                 break
 
         if not target_directory:
-            raise Exception('Inconsistent cache tree: expected directory "%s" not found', target_directory)
+            raise Exception('Inconsistent store tree: expected directory "%s" not found', target_directory)
 
-        return find_node(digest, path=osaccess.build_directory_path(path, target_directory))
+        return _find_node(digest, path=osaccess.build_directory_path(path, target_directory))
 
 
 def get_store_id(key: object) -> str:
@@ -176,27 +179,28 @@ def get_store_id(key: object) -> str:
     hash_md5 = hashlib.md5()
     hash_md5.update(key.encode('utf-8'))
     digest = hash_md5.hexdigest()
-    target_node = find_node(digest)
+    target_node = _find_node(digest)
     return osaccess.build_file_path(target_node, digest)
 
 
 def has_store_key(key):
     """
-    Checks if specified cache key (typically a full url) corresponds to an entry in the cache.
+    Checks if specified store key (typically a full url) corresponds to an entry in the store.
 
     :param key:
     :return:
     """
     return osaccess.exists_path(get_store_id(key))
 
+
 def _fileindex_name():
-    return osaccess.build_file_path(_get_cache_file_path(), __CACHE_INDEX_NAME)
+    return osaccess.build_file_path(_get_store_path(), __STORE_INDEX_NAME)
 
 
-def _add_to_cache(key, value):
+def add_to_store(key, value):
     __rebalancing.acquire()
     try:
-        logging.debug('adding to cache: %s', key)
+        logging.debug('adding to store: %s', key)
         filename = get_store_id(key)
         filename_digest = osaccess.get_file_from_filepath(filename)
         index_name = _fileindex_name()
@@ -210,14 +214,14 @@ def _add_to_cache(key, value):
         __rebalancing.release()
 
     if osaccess.file_size(index_name) % __REBALANCING_LIMIT == 0:
-        logging.debug('rebalancing cache')
-        rebalance_cache_tree(_get_cache_file_path())
+        logging.debug('rebalancing store')
+        _rebalance_store_tree(_get_store_path())
 
 
-def _get_from_cache(key):
+def retrieve_from_store(key):
     __rebalancing.acquire()
     try:
-        logging.debug('reading from cache: %s', key)
+        logging.debug('reading from store: %s', key)
         content = osaccess.load_file_content(get_store_id(key), encoding='utf-8')
     finally:
         __rebalancing.notify_all()
@@ -226,7 +230,7 @@ def _get_from_cache(key):
     return content
 
 
-def _remove_from_cache_multiple(keys):
+def _remove_from_store_multiple(keys):
     __rebalancing.acquire()
     try:
         index_name = _fileindex_name()
@@ -235,7 +239,7 @@ def _remove_from_cache_multiple(keys):
         for key in keys:
             filename = get_store_id(key)
             filename_digest = osaccess.get_file_from_filepath(filename)
-            logging.info('removing key %s from cache' % key)
+            logging.info('removing key %s from store' % key)
             osaccess.remove_file(filename)
             lines = [line for line in lines if line.split(' ')[1] != filename_digest + ':']
 
@@ -246,39 +250,13 @@ def _remove_from_cache_multiple(keys):
         __rebalancing.release()
 
 
-def _remove_from_cache(key):
-    _remove_from_cache_multiple([key])
-
-
-def read_cached(read_func, key):
-    """
-    :param read_func: function getting the data that will be cached
-    :param key: key associated to the cache entry
-    :return:
-    """
-    logging.debug('reading for key: %s', key)
-    if is_cache_used():
-        if not has_store_key(key):
-            content = read_func(key)
-            _add_to_cache(key, content)
-
-        content = _get_from_cache(key)
-
-    else:
-        # straight access
-        content = read_func(key)
-
-    return content
+def _remove_from_store(key):
+    _remove_from_store_multiple([key])
 
 
 def remove_store_key(key):
-    if is_cache_used():
-        _remove_from_cache(key)
-
-
-def rebalance_store():
-    if is_cache_used():
-        rebalance_cache_tree(_get_cache_file_path())
+    if is_store_enabled():
+        _remove_from_store(key)
 
 
 def empty_store():
@@ -286,9 +264,9 @@ def empty_store():
     Removing cache content.
     :return:
     """
-    if is_cache_used():
-        for node in osaccess.get_files_under_path(_get_cache_file_path()):
-            node_path = osaccess.build_file_path(_get_cache_file_path(), node)
+    if is_store_enabled():
+        for node in osaccess.get_files_under_path(_get_store_path()):
+            node_path = osaccess.build_file_path(_get_store_path(), node)
             osaccess.remove_all_under_path(node_path)
 
         osaccess.remove_file_if_exists(_fileindex_name())

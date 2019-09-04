@@ -14,12 +14,13 @@ Subsequent calls for the same URL returns the cached data:
     True
 
 """
+import logging
 from time import sleep
 
 import requests
 
-from webscrapetools.keyvalue import read_cached, set_store_path, empty_store, get_store_id, remove_store_key, \
-    has_store_key
+from webscrapetools.keyvalue import set_store_path, empty_store, get_store_id, remove_store_key, \
+    has_store_key, is_store_enabled, add_to_store, retrieve_from_store
 
 __HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
 
@@ -27,7 +28,8 @@ __HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_
 __web_client = None
 __last_request = None
 
-__all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached']
+__all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached',
+           'read_cached']
 
 
 def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None, expiry_days=10):
@@ -71,6 +73,27 @@ def get_last_request():
     :return:
     """
     return __last_request
+
+
+def read_cached(read_func, key):
+    """
+    :param read_func: function getting the data that will be cached
+    :param key: key associated to the cache entry
+    :return:
+    """
+    logging.debug('reading for key: %s', key)
+    if is_store_enabled():
+        if not has_store_key(key):
+            content = read_func(key)
+            add_to_store(key, content)
+
+        content = retrieve_from_store(key)
+
+    else:
+        # straight access
+        content = read_func(key)
+
+    return content
 
 
 def open_url(url, rejection_marker=None, throttle=None, init_client_func=None, call_client_func=None):
