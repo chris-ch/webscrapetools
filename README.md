@@ -56,7 +56,10 @@ The code above outputs the following:
     duration for call 4: 0.00
     duration for call 5: 0.00
 
-** Example plugging in a custom client **
+**Example plugging in a custom client**
+
+The framework lets you customize the way you access the web. It is therefore possible to drive a browser 
+via Selenium for example.
 
     set_cache_path('./output/tests', max_node_files=10, rebalancing_limit=100)
 
