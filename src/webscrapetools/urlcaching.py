@@ -21,6 +21,7 @@ import threading
 
 from datetime import datetime, timedelta
 from time import sleep
+from typing import Iterable, List, MutableSequence, Tuple
 
 import requests
 import hashlib
@@ -106,7 +107,7 @@ def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None,
     invalidate_expired_entries()
 
 
-def invalidate_expired_entries(as_of_date=None):
+def invalidate_expired_entries(as_of_date: datetime=None) -> None:
     """
     :param as_of_date: fake current date (for dev only)
     :return:
@@ -134,15 +135,15 @@ def invalidate_expired_entries(as_of_date=None):
     _remove_from_cache_multiple(expired_keys)
 
 
-def is_cache_used():
+def is_cache_used() -> bool:
     return _get_cache_file_path() is not None
 
 
-def _generator_count(a_generator):
-    return sum(1 for item in a_generator)
+def _generator_count(a_generator: Iterable) -> int:
+    return sum(1 for _ in a_generator)
 
 
-def _divide_node(path, nodes_path):
+def _divide_node(path: str, nodes_path: MutableSequence[str]) -> Tuple[str, str]:
     level = len(nodes_path)
     new_node_sup_init = 'FF' * 20
     new_node_inf_init = '7F' + 'FF' * 19
@@ -191,7 +192,7 @@ def rebalance_cache_tree(path, nodes_path=None):
         rebalance_cache_tree(path, nodes_path + [directory])
 
 
-def find_node(digest, path=None):
+def find_node(digest: str, path=None):
     if not path:
         path = _get_cache_file_path()
 
@@ -213,13 +214,13 @@ def find_node(digest, path=None):
         return find_node(digest, path=build_directory_path(path, target_directory))
 
 
-def get_cache_filename(key):
+def get_cache_filename(key: object) -> str:
     """
 
     :param key: text uniquely identifying the associated content (typically a full url)
     :return: hashed version of the input key
     """
-    key = str(key)
+    key = repr(key)
     hash_md5 = hashlib.md5()
     hash_md5.update(key.encode('utf-8'))
     digest = hash_md5.hexdigest()

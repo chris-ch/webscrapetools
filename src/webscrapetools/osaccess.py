@@ -4,6 +4,18 @@ import logging
 from typing import Iterable
 
 
+class Path(str):
+    pass
+
+
+class FilePath(Path):
+    pass
+
+
+class DirectoryPath(Path):
+    pass
+
+
 def create_path_if_not_exists(path: str) -> str:
     path_full = os.path.abspath(path)
     if not os.path.exists(path_full):

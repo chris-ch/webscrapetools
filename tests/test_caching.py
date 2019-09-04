@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 import unittest
 from datetime import datetime
@@ -6,7 +7,8 @@ from datetime import timedelta
 
 from webscrapetools.taskpool import TaskPool
 
-from webscrapetools.urlcaching import set_cache_path, read_cached, empty_cache, invalidate_expired_entries, is_cached
+from webscrapetools.urlcaching import set_cache_path, read_cached, empty_cache, invalidate_expired_entries, is_cached, \
+    get_cache_filename
 
 
 class TestUrlCaching(unittest.TestCase):
@@ -57,6 +59,12 @@ class TestUrlCaching(unittest.TestCase):
         self.assertFalse(is_cached('ghf'))
 
         empty_cache()
+
+    def test_cache_entry(self):
+        set_cache_path('./output/tests', max_node_files=400, rebalancing_limit=1000)
+        empty_cache()
+        value = get_cache_filename('my content')
+        self.assertEqual(value, os.path.abspath('output/tests/bc4e44260919ea00a59f7a9dc75e73e3'))
 
     def tearDown(self):
         empty_cache()
