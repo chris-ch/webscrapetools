@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 
 __all__ = ['set_store_path', 'invalidate_expired_entries', 'is_store_enabled', 'has_store_key', 'get_store_id',
-           'add_to_store', 'retrieve_from_store', 'remove_from_store', 'empty_store']
+           'add_to_store', 'retrieve_from_store', 'remove_from_store', 'empty_store', 'list_keys']
 
 __rebalancing = threading.Condition()
 __STORE_INDEX_NAME = 'index'
@@ -88,6 +88,23 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
 
     osaccess.process_file_by_line(index_name, line_processor=gather_expired_keys)
     remove_from_store_multiple(expired_keys)
+
+
+def list_keys():
+    index_name = _fileindex_name()
+
+    if not osaccess.exists_path(index_name):
+        return list()
+
+    keys = list()
+
+    def gather_keys(line):
+        yyyymmdd, key_md5, key_commas = line.strip().split(' ')
+        key = key_commas[1:-1]
+        keys.append(key)
+
+    osaccess.process_file_by_line(index_name, line_processor=gather_keys)
+    return sorted(keys)
 
 
 def is_store_enabled() -> bool:
@@ -169,7 +186,7 @@ def _find_node(digest: str, path=None):
         return _find_node(digest, path=osaccess.build_directory_path(path, target_directory))
 
 
-def get_store_id(key: object) -> str:
+def get_store_id(key: str) -> str:
     """
 
     :param key: text uniquely identifying the associated content (typically a full url)
@@ -197,7 +214,7 @@ def _fileindex_name():
     return osaccess.build_file_path(_get_store_path(), __STORE_INDEX_NAME)
 
 
-def add_to_store(key: object, value: str) -> None:
+def add_to_store(key: str, value: str) -> None:
     __rebalancing.acquire()
     try:
         logging.debug('adding to store: %s', key)
@@ -218,7 +235,7 @@ def add_to_store(key: object, value: str) -> None:
         _rebalance_store_tree(_get_store_path())
 
 
-def retrieve_from_store(key: object, fail_on_missing: bool=False) -> str:
+def retrieve_from_store(key: str, fail_on_missing: bool=False) -> str:
     __rebalancing.acquire()
     try:
         logging.debug('reading from store: %s', key)

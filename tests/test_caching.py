@@ -6,7 +6,7 @@ from datetime import datetime
 from datetime import timedelta
 
 from webscrapetools.keyvalue import invalidate_expired_entries, set_store_path, add_to_store, retrieve_from_store, \
-    remove_from_store
+    remove_from_store, list_keys
 from webscrapetools.osaccess import gen_directories_under, gen_files_under
 from webscrapetools.taskpool import TaskPool
 
@@ -44,8 +44,8 @@ class TestUrlCaching(unittest.TestCase):
         set_cache_path(test_output_dir, max_node_files=400, rebalancing_limit=1000, expiry_days=3)
         empty_cache()
 
-        self.assertEqual(len(list(gen_directories_under(test_output_dir))), 0)
-        self.assertEqual(len(list(gen_files_under(test_output_dir))), 0)
+        self.assertEqual(0, len(list(gen_directories_under(test_output_dir))))
+        self.assertEqual(0, len(list(gen_files_under(test_output_dir))))
 
         def read_random_value(key):
             return 'content for key %s: %s' % (key, random.randint(1, 100000))
@@ -65,14 +65,14 @@ class TestUrlCaching(unittest.TestCase):
         self.assertFalse(is_cached('ghf'))
 
         empty_cache()
-        self.assertEqual(len(list(gen_directories_under(test_output_dir))), 0)
-        self.assertEqual(len(list(gen_files_under(test_output_dir))), 0)
+        self.assertEqual(0, len(list(gen_directories_under(test_output_dir))))
+        self.assertEqual(0, len(list(gen_files_under(test_output_dir))))
 
     def test_cache_entry(self):
         set_cache_path('./output/tests', max_node_files=400, rebalancing_limit=1000)
         empty_cache()
         value = get_cache_filename('my content')
-        self.assertEqual(value, os.path.abspath('output/tests/bc4e44260919ea00a59f7a9dc75e73e3'))
+        self.assertEqual(os.path.abspath('output/tests/bc4e44260919ea00a59f7a9dc75e73e3'), value)
         empty_cache()
 
     def test_cache_example(self):
@@ -91,18 +91,20 @@ class TestUrlCaching(unittest.TestCase):
         empty_cache()
 
     def test_store(self):
-        set_store_path('./output/tests', max_node_files=10, rebalancing_limit=100)
-        for count in range(1000):
-            add_to_store(count, str(count))
+        set_store_path('./output/tests', max_node_files=10, rebalancing_limit=30)
+        for count in range(100):
+            add_to_store(str(count), str(count))
 
-        value = retrieve_from_store(300)
-        self.assertEqual(value, '300')
-        remove_from_store(300)
-        value = retrieve_from_store(300)
+        value = retrieve_from_store('30')
+        self.assertEqual('30', value)
+        remove_from_store('30')
+        value = retrieve_from_store('30')
         self.assertIsNone(value)
         with self.assertRaises(Exception) as _:
-            retrieve_from_store(300, fail_on_missing=True)
+            retrieve_from_store('30', fail_on_missing=True)
 
+        keys = list_keys()
+        self.assertListEqual(sorted(list(filter(lambda x: x != '30', map(str, range(100))))), keys)
         empty_cache()
 
     def tearDown(self):
