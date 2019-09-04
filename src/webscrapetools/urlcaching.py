@@ -45,6 +45,21 @@ __last_request = None
 __all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached']
 
 
+def _get_cache_file_path():
+    global __CACHE_FILE_PATH
+    return __CACHE_FILE_PATH
+
+
+def _get_expiry_days() -> int:
+    global __EXPIRY_DAYS
+    return __EXPIRY_DAYS
+
+
+def _get_max_node_files() -> int:
+    global __MAX_NODE_FILES
+    return __MAX_NODE_FILES
+
+
 def get_web_client():
     """
     Underlying requests session.
@@ -96,8 +111,6 @@ def invalidate_expired_entries(as_of_date=None):
     :param as_of_date: fake current date (for dev only)
     :return:
     """
-    global __EXPIRY_DAYS
-
     index_name = _fileindex_name()
 
     if not exists_path(index_name):
@@ -106,8 +119,7 @@ def invalidate_expired_entries(as_of_date=None):
     if as_of_date is None:
         as_of_date = datetime.today()
 
-    expiry_date = as_of_date - timedelta(days=__EXPIRY_DAYS)
-
+    expiry_date = as_of_date - timedelta(days=_get_expiry_days())
     expired_keys = list()
 
     def gather_expired_keys(line):
@@ -123,7 +135,7 @@ def invalidate_expired_entries(as_of_date=None):
 
 
 def is_cache_used():
-    return __CACHE_FILE_PATH is not None
+    return _get_cache_file_path() is not None
 
 
 def _generator_count(a_generator):
@@ -154,7 +166,7 @@ def rebalance_cache_tree(path, nodes_path=None):
 
     current_path = build_directory_path(path, nodes_path)
     files_node = get_files_under(current_path)
-    rebalancing_required = _generator_count(itertools.islice(files_node, __MAX_NODE_FILES + 1)) > __MAX_NODE_FILES
+    rebalancing_required = _generator_count(itertools.islice(files_node, _get_max_node_files() + 1)) > _get_max_node_files()
     if rebalancing_required:
         new_path_1, new_path_2 = _divide_node(path, nodes_path)
         logging.info('rebalancing required, creating nodes: %s and %s', new_path_1, new_path_2)
@@ -181,7 +193,7 @@ def rebalance_cache_tree(path, nodes_path=None):
 
 def find_node(digest, path=None):
     if not path:
-        path = __CACHE_FILE_PATH
+        path = _get_cache_file_path()
 
     directories = get_directories_under(path)
 
@@ -228,7 +240,7 @@ def is_cached(key):
 
 
 def _fileindex_name():
-    return build_file_path(__CACHE_FILE_PATH, 'index')
+    return build_file_path(_get_cache_file_path(), 'index')
 
 
 def _add_to_cache(key, value):
@@ -249,7 +261,7 @@ def _add_to_cache(key, value):
 
     if file_size(index_name) % __REBALANCING_LIMIT == 0:
         logging.debug('rebalancing cache')
-        rebalance_cache_tree(__CACHE_FILE_PATH)
+        rebalance_cache_tree(_get_cache_file_path())
 
 
 def _get_from_cache(key):
@@ -316,7 +328,7 @@ def invalidate_key(key):
 
 def rebalance_cache():
     if is_cache_used():
-        rebalance_cache_tree(__CACHE_FILE_PATH)
+        rebalance_cache_tree(_get_cache_file_path())
 
 
 def empty_cache():
@@ -324,11 +336,9 @@ def empty_cache():
     Removing cache content.
     :return:
     """
-    global __CACHE_FILE_PATH
-
     if is_cache_used():
-        for node in get_files_under_path(__CACHE_FILE_PATH):
-            node_path = build_file_path(__CACHE_FILE_PATH, node)
+        for node in get_files_under_path(_get_cache_file_path()):
+            node_path = build_file_path(_get_cache_file_path(), node)
             remove_all_under_path(node_path)
 
         remove_file_if_exists(_fileindex_name())
