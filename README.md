@@ -56,3 +56,19 @@ The code above outputs the following:
     duration for call 4: 0.00
     duration for call 5: 0.00
 
+** Example plugging in a custom client **
+
+    set_cache_path('./output/tests', max_node_files=10, rebalancing_limit=100)
+
+    def dummy_client():
+        return None
+
+    def dummy_call(_, key):
+        return '{:d}'.format(int(key)) * int(key), key
+
+    # simulating calls using the dummy client
+    keys = ('{:05d}'.format(count) for count in range(500))
+    for key in keys:
+        open_url(key, init_client_func=dummy_client, call_client_func=dummy_call)
+
+    empty_cache()
