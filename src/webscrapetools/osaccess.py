@@ -72,7 +72,7 @@ def remove_all_under_path(path):
 
 
 def get_directories_under(path):
-    return (node for node in os.listdir(path) if os.path.isdir(os.path.join(path, node)))
+    return sorted(node for node in os.listdir(path) if os.path.isdir(os.path.join(path, node)))
 
 
 def get_files_under(path):
@@ -86,6 +86,13 @@ def load_file_content(filepath, encoding='utf-8'):
     return content
 
 
+def load_file_lines(filepath, encoding='utf-8'):
+    with open(filepath, 'r', encoding=encoding) as myfile:
+        lines = myfile.readlines()
+
+    return lines
+
+
 def process_file_by_line(filename, line_processor):
     with open(filename, 'r') as index_file:
         lines = index_file.readlines()
@@ -94,3 +101,23 @@ def process_file_by_line(filename, line_processor):
                 continue
 
             line_processor(line)
+
+
+def save_lines(filepath, lines):
+    with open(filepath, 'w') as myfile:
+        myfile.writelines(lines)
+
+
+def save_content(filename, content):
+    with open(filename, 'w', encoding='utf-8') as myfile:
+        myfile.write(content)
+
+
+def append_content(filepath, content):
+    if not exists_path(filepath):
+        with open(filepath, 'w') as myfile:
+            myfile.write(content)
+
+    else:
+        with open(filepath, 'a') as myfile:
+            myfile.write(content)

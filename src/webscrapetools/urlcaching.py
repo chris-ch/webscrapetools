@@ -29,7 +29,7 @@ import hashlib
 from webscrapetools.osaccess import create_path_if_not_exists, exists_path, build_file_path, file_size, \
     get_file_from_filepath, remove_file, get_files_under_path, remove_file_if_exists, remove_all_under_path, \
     get_files_under, get_directories_under, build_directory_path, rename_path, create_new_filepath, load_file_content, \
-    process_file_by_line
+    process_file_by_line, save_lines, save_content, append_content, load_file_lines
 
 __CACHE_FILE_PATH = None
 __EXPIRY_DAYS = None
@@ -183,7 +183,7 @@ def find_node(digest, path=None):
     if not path:
         path = __CACHE_FILE_PATH
 
-    directories = sorted(get_directories_under(path))
+    directories = get_directories_under(path)
 
     if not directories:
         return path
@@ -236,20 +236,12 @@ def _add_to_cache(key, value):
     try:
         logging.debug('adding to cache: %s', key)
         filename = get_cache_filename(key)
+        filename_digest = get_file_from_filepath(filename)
         index_name = _fileindex_name()
         today = datetime.today().strftime('%Y%m%d')
-        with open(filename, 'w', encoding='utf-8') as cache_content:
-            cache_content.write(value)
-
-        if not exists_path(index_name):
-            with open(index_name, 'w') as index_file:
-                filename_digest = get_file_from_filepath(filename)
-                index_file.write('%s %s: "%s"\n' % (today, filename_digest, key))
-
-        else:
-            with open(index_name, 'a') as index_file:
-                filename_digest = get_file_from_filepath(filename)
-                index_file.write('%s %s: "%s"\n' % (today, filename_digest, key))
+        save_content(filename, value)
+        index_entry = '%s %s: "%s"\n' % (today, filename_digest, key)
+        append_content(index_name, index_entry)
 
     finally:
         __rebalancing.notify_all()
@@ -276,17 +268,16 @@ def _remove_from_cache_multiple(keys):
     __rebalancing.acquire()
     try:
         index_name = _fileindex_name()
-        with open(index_name, 'r') as index_file:
-            lines = index_file.readlines()
-            for key in keys:
-                filename = get_cache_filename(key)
-                filename_digest = get_file_from_filepath(filename)
-                logging.info('removing key %s from cache' % key)
-                remove_file(filename)
-                lines = [line for line in lines if line.split(' ')[1] != filename_digest + ':']
+        lines = load_file_lines(index_name)
 
-        with open(index_name, 'w') as index_file:
-            index_file.writelines(lines)
+        for key in keys:
+            filename = get_cache_filename(key)
+            filename_digest = get_file_from_filepath(filename)
+            logging.info('removing key %s from cache' % key)
+            remove_file(filename)
+            lines = [line for line in lines if line.split(' ')[1] != filename_digest + ':']
+
+        save_lines(index_name, lines)
 
     finally:
         __rebalancing.notify_all()
