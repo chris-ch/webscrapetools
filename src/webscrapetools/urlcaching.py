@@ -22,14 +22,26 @@ import requests
 from webscrapetools.keyvalue import set_store_path, empty_store, get_store_id, remove_from_store, \
     has_store_key, is_store_enabled, add_to_store, retrieve_from_store
 
+
+__all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached',
+           'read_cached', 'set_headers_browser']
+
 __HEADERS_CHROME = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
 
 
 __web_client = None
 __last_request = None
 
-__all__ = ['open_url', 'set_cache_path', 'empty_cache', 'get_cache_filename', 'invalidate_key', 'is_cached',
-           'read_cached']
+_headers_browser = __HEADERS_CHROME
+
+
+def set_headers_browser(headers):
+    global _headers_browser
+    _headers_browser = headers
+
+
+def _get_headers_browser():
+    return _headers_browser
 
 
 def set_cache_path(cache_file_path, max_node_files=None, rebalancing_limit=None, expiry_days=10):
@@ -122,7 +134,7 @@ def open_url(url, rejection_marker=None, throttle=None, init_client_func=None, c
             sleep(throttle)
 
         if call_client_func is None:
-            response = __web_client.get(request_url, headers=__HEADERS_CHROME)
+            response = __web_client.get(request_url, headers=_get_headers_browser())
             response_text = response.text
             __last_request = response.request
 
