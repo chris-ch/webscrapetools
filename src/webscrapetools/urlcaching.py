@@ -61,7 +61,7 @@ def is_cached(key):
     return has_store_key(key)
 
 
-def get_cache_filename(key: object) -> str:
+def get_cache_filename(key: str) -> str:
     """
 
     :param key: text uniquely identifying the associated content (typically a full url)
@@ -148,3 +148,13 @@ def open_url(url, rejection_marker=None, throttle=None, init_client_func=None, c
 
     content = read_cached(inner_open_url, url)
     return content
+
+
+def reset_client():
+    """
+    Forces a new client to be used for subsequent calls.
+
+    :return:
+    """
+    global __web_client
+    __web_client = None
