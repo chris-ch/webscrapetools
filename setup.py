@@ -1,6 +1,6 @@
 from setuptools import setup
 
-__version = '0.5'
+__version = '0.5.1'
 
 INSTALL_REQUIRE = ['requests>=2.20.0']
 

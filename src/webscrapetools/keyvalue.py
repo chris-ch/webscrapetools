@@ -67,6 +67,9 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
     :param as_of_date: fake current date (for dev only)
     :return:
     """
+    if not _get_expiry_days():
+        return
+
     index_name = _fileindex_name()
 
     if not osaccess.exists_path(index_name):
