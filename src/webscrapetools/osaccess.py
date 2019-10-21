@@ -1,7 +1,7 @@
 import os
 from shutil import rmtree
 import logging
-from typing import Iterable, Sequence, List
+from typing import Iterable, List, Callable
 
 
 class Path(object):
@@ -109,8 +109,8 @@ def gen_files_under(path):
     return sorted(node for node in os.listdir(path) if os.path.isfile(os.path.join(path, node)))
 
 
-def load_file_content(filepath, encoding='utf-8'):
-    with open(filepath, 'r', encoding=encoding) as cache_content:
+def load_file_content(filepath: str) -> bytes:
+    with open(filepath, 'rb') as cache_content:
         content = cache_content.read()
 
     return content
@@ -123,7 +123,7 @@ def load_file_lines(filepath, encoding='utf-8'):
     return lines
 
 
-def process_file_by_line(filename, line_processor):
+def process_file_by_line(filename: str, line_processor: Callable[[str], None]) -> None:
     with open(filename, 'r') as index_file:
         lines = index_file.readlines()
         for line in lines:
@@ -133,21 +133,21 @@ def process_file_by_line(filename, line_processor):
             line_processor(line)
 
 
-def save_lines(filepath, lines):
+def save_lines(filepath: str, lines: Iterable[str]) -> None:
     with open(filepath, 'w') as myfile:
         myfile.writelines(lines)
 
 
-def save_content(filename, content):
-    with open(filename, 'w', encoding='utf-8') as myfile:
+def save_content(filename: str, content: bytes) -> None:
+    with open(filename, 'wb') as myfile:
         myfile.write(content)
 
 
-def append_content(filepath, content):
+def append_content(filepath: str, content: bytes):
     if not exists_path(filepath):
-        with open(filepath, 'w') as myfile:
+        with open(filepath, 'wb') as myfile:
             myfile.write(content)
 
     else:
-        with open(filepath, 'a') as myfile:
+        with open(filepath, 'ab') as myfile:
             myfile.write(content)

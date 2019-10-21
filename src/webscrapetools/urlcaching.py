@@ -16,6 +16,7 @@ Subsequent calls for the same URL returns the cached data:
 """
 import logging
 from time import sleep
+from typing import Callable
 
 import requests
 
@@ -88,7 +89,7 @@ def get_last_request():
     return __last_request
 
 
-def read_cached(read_func, key):
+def read_cached(read_func: Callable[[str], bytes], key: str) -> bytes:
     """
     :param read_func: function getting the data that will be cached
     :param key: key associated to the cache entry

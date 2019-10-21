@@ -26,8 +26,8 @@ class TestUrlCaching(unittest.TestCase):
 
         def open_test_random(key):
 
-            def inner_open_test_random(inner_key):
-                return 'content for key %s: %s' % (inner_key, random.randint(1, 100000))
+            def inner_open_test_random(inner_key: str) -> bytes:
+                return bytes('content for key %s: %s' % (inner_key, random.randint(1, 100000)), 'utf-8')
 
             content = read_cached(inner_open_test_random, key)
             return content
@@ -47,8 +47,8 @@ class TestUrlCaching(unittest.TestCase):
         self.assertEqual(0, len(list(gen_directories_under(test_output_dir))))
         self.assertEqual(0, len(list(gen_files_under(test_output_dir))))
 
-        def read_random_value(key):
-            return 'content for key %s: %s' % (key, random.randint(1, 100000))
+        def read_random_value(key: str) -> bytes:
+            return bytes('content for key %s: %s' % (key, random.randint(1, 100000)), encoding='utf-8')
 
         read_cached(read_random_value, key='abc')
         read_cached(read_random_value, key='def')
@@ -81,8 +81,8 @@ class TestUrlCaching(unittest.TestCase):
         def dummy_client():
             return None
 
-        def dummy_call(_, key):
-            return '{:d}'.format(int(key)) * int(key), key
+        def dummy_call(_, dummy_key):
+            return bytes('{:d}'.format(int(dummy_key)) * int(dummy_key), encoding='utf-8'), dummy_key
 
         keys = ('{:05d}'.format(count) for count in range(500))
         for key in keys:
@@ -93,10 +93,10 @@ class TestUrlCaching(unittest.TestCase):
     def test_store(self):
         set_store_path('./output/tests', max_node_files=10, rebalancing_limit=30)
         for count in range(100):
-            add_to_store(str(count), str(count))
+            add_to_store(str(count), bytes(str(count), 'utf-8'))
 
         value = retrieve_from_store('30')
-        self.assertEqual('30', value)
+        self.assertEqual(b'30', value)
         remove_from_store('30')
         value = retrieve_from_store('30')
         self.assertIsNone(value)

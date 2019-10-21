@@ -214,7 +214,7 @@ def _fileindex_name():
     return osaccess.build_file_path(_get_store_path(), __STORE_INDEX_NAME)
 
 
-def add_to_store(key: str, value: str) -> None:
+def add_to_store(key: str, value: bytes) -> None:
     __rebalancing.acquire()
     try:
         logging.debug('adding to store: %s', key)
@@ -224,7 +224,7 @@ def add_to_store(key: str, value: str) -> None:
         today = datetime.today().strftime('%Y%m%d')
         osaccess.save_content(filename, value)
         index_entry = '%s %s: "%s"\n' % (today, filename_digest, key)
-        osaccess.append_content(index_name, index_entry)
+        osaccess.append_content(index_name, bytes(index_entry, 'utf-8'))
 
     finally:
         __rebalancing.notify_all()
@@ -235,12 +235,12 @@ def add_to_store(key: str, value: str) -> None:
         _rebalance_store_tree(_get_store_path())
 
 
-def retrieve_from_store(key: str, fail_on_missing: bool=False) -> str:
+def retrieve_from_store(key: str, fail_on_missing: bool=False) -> bytes:
     __rebalancing.acquire()
     try:
         logging.debug('reading from store: %s', key)
         if osaccess.exists_path(get_store_id(key)):
-            content = osaccess.load_file_content(get_store_id(key), encoding='utf-8')
+            content = osaccess.load_file_content(get_store_id(key))
 
         else:
             if fail_on_missing:
