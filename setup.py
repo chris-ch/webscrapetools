@@ -1,6 +1,6 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
-__version = '0.4.6'
+__version = '0.5'
 
 INSTALL_REQUIRE = ['requests>=2.20.0']
 
