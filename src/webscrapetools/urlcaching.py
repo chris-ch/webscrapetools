@@ -89,7 +89,7 @@ def get_last_request():
     return __last_request
 
 
-def read_cached(read_func: Callable[[str], bytes], key: str) -> bytes:
+def read_cached(read_func: Callable[[str], str], key: str) -> str:
     """
     :param read_func: function getting the data that will be cached
     :param key: key associated to the cache entry
@@ -99,9 +99,9 @@ def read_cached(read_func: Callable[[str], bytes], key: str) -> bytes:
     if is_store_enabled():
         if not has_store_key(key):
             content = read_func(key)
-            add_to_store(key, content)
+            add_to_store(key, bytes(content, 'utf-8'))
 
-        content = retrieve_from_store(key)
+        content = retrieve_from_store(key).decode('utf-8')
 
     else:
         # straight access

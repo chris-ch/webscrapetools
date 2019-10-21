@@ -47,8 +47,8 @@ class TestUrlCaching(unittest.TestCase):
         self.assertEqual(0, len(list(gen_directories_under(test_output_dir))))
         self.assertEqual(0, len(list(gen_files_under(test_output_dir))))
 
-        def read_random_value(key: str) -> bytes:
-            return bytes('content for key %s: %s' % (key, random.randint(1, 100000)), encoding='utf-8')
+        def read_random_value(key: str) -> str:
+            return 'content for key %s: %s' % (key, random.randint(1, 100000))
 
         read_cached(read_random_value, key='abc')
         read_cached(read_random_value, key='def')
@@ -82,7 +82,7 @@ class TestUrlCaching(unittest.TestCase):
             return None
 
         def dummy_call(_, dummy_key):
-            return bytes('{:d}'.format(int(dummy_key)) * int(dummy_key), encoding='utf-8'), dummy_key
+            return '{:d}'.format(int(dummy_key)) * int(dummy_key), dummy_key
 
         keys = ('{:05d}'.format(count) for count in range(500))
         for key in keys:
