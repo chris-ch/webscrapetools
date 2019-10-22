@@ -14,7 +14,8 @@ __all__ = ['set_store_path', 'invalidate_expired_entries', 'is_store_enabled', '
 __rebalancing = threading.Condition()
 __STORE_INDEX_NAME = 'index'
 __STORE_PATH = None
-__EXPIRY_DAYS = None
+__EXPIRY_PERIODS = None
+__EXPIRY_UNIT = None
 __MAX_NODE_FILES = 0x100
 __REBALANCING_LIMIT = 0x200
 
@@ -24,9 +25,10 @@ def _get_store_path():
     return __STORE_PATH
 
 
-def _get_expiry_days() -> int:
-    global __EXPIRY_DAYS
-    return __EXPIRY_DAYS
+def _get_expiry() -> Tuple[int, str]:
+    global __EXPIRY_PERIODS
+    global __EXPIRY_UNIT
+    return __EXPIRY_PERIODS, __EXPIRY_UNIT
 
 
 def _get_max_node_files() -> int:
@@ -34,22 +36,32 @@ def _get_max_node_files() -> int:
     return __MAX_NODE_FILES
 
 
-def set_store_path(store_path, max_node_files=None, rebalancing_limit=None, expiry_days=None):
+def set_store_path(store_path, max_node_files=None, rebalancing_limit=None, expiry_days=None, expiry_periods=None, expiry_unit=None):
     """
     Required for enabling caching.
 
     :param store_path:
     :param max_node_files:
     :param rebalancing_limit:
-    :param expiry_days:
+    :param expiry_periods: number of periods in expiry_unit before removing from cache
+    :param expiry_unit: one of ('day', 'seconds')
+    :param expiry_days: number of days before purging from cache, defaults expiry_unit to 'day'
     :return:
     """
     global __STORE_PATH
     global __MAX_NODE_FILES
     global __REBALANCING_LIMIT
-    global __EXPIRY_DAYS
+    global __EXPIRY_PERIODS
+    global __EXPIRY_UNIT
 
-    __EXPIRY_DAYS = expiry_days
+    if not expiry_periods and not expiry_unit:
+        __EXPIRY_UNIT = 'day'
+        __EXPIRY_PERIODS = expiry_days
+
+    else:
+        __EXPIRY_UNIT = expiry_unit
+        __EXPIRY_PERIODS = expiry_periods
+
 
     if max_node_files is not None:
         __MAX_NODE_FILES = max_node_files
@@ -67,7 +79,7 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
     :param as_of_date: fake current date (for dev only)
     :return:
     """
-    if not _get_expiry_days():
+    if not _get_expiry():
         return
 
     index_name = _fileindex_name()
@@ -78,19 +90,36 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
     if as_of_date is None:
         as_of_date = datetime.today()
 
-    expiry_date = as_of_date - timedelta(days=_get_expiry_days())
+    expiry_periods, expiry_unit = _get_expiry()
+    if expiry_unit == 'day':
+        expiry_date = as_of_date - timedelta(days=expiry_periods)
+
+    elif expiry_unit == 'second':
+        expiry_date = as_of_date - timedelta(seconds=expiry_periods)
+
+    else:
+        raise RuntimeError('expiry unit undefined: {}'.format(expiry_unit))
+
     expired_keys = list()
 
     def gather_expired_keys(line):
-        yyyymmdd, key_md5, key_commas = line.strip().split(' ')
+        date_str, key_md5, key_commas = line.strip().split(' ')
         key = key_commas[1:-1]
-        key_date = datetime.strptime(yyyymmdd, '%Y%m%d')
+        key_date = _key_date_parse(date_str)
         if expiry_date > key_date:
             logging.debug('expired entry for key "%s" (%s)', key_md5[:-1], key)
             expired_keys.append(key)
 
     osaccess.process_file_by_line(index_name, line_processor=gather_expired_keys)
     remove_from_store_multiple(expired_keys)
+
+
+def _key_date_parse(date_str: str):
+    return datetime.strptime(date_str, '%Y%m%d')
+
+
+def _key_date_format(a_date: datetime):
+    return a_date.strftime('%Y%m%d')
 
 
 def list_keys():
@@ -218,16 +247,22 @@ def _fileindex_name():
 
 
 def add_to_store(key: str, value: bytes) -> None:
+
+    is_existing_key = has_store_key(key)
+
     __rebalancing.acquire()
+
     try:
         logging.debug('adding to store: %s', key)
         filename = get_store_id(key)
         filename_digest = osaccess.get_file_from_filepath(filename)
         index_name = _fileindex_name()
         today = datetime.today().strftime('%Y%m%d')
+        today = _key_date_format(datetime.today())
         osaccess.save_content(filename, value)
-        index_entry = '%s %s: "%s"\n' % (today, filename_digest, key)
-        osaccess.append_content(index_name, bytes(index_entry, 'utf-8'))
+        if not is_existing_key:
+            index_entry = '%s %s: "%s"\n' % (today, filename_digest, key)
+            osaccess.append_content(index_name, bytes(index_entry, 'utf-8'))
 
     finally:
         __rebalancing.notify_all()

@@ -26,8 +26,8 @@ class TestUrlCaching(unittest.TestCase):
 
         def open_test_random(key):
 
-            def inner_open_test_random(inner_key: str) -> bytes:
-                return bytes('content for key %s: %s' % (inner_key, random.randint(1, 100000)), 'utf-8')
+            def inner_open_test_random(inner_key: str) -> str:
+                return 'content for key %s: %s' % (inner_key, random.randint(1, 100000))
 
             content = read_cached(inner_open_test_random, key)
             return content
@@ -77,6 +77,7 @@ class TestUrlCaching(unittest.TestCase):
 
     def test_cache_example(self):
         set_cache_path('./output/tests', max_node_files=10, rebalancing_limit=100)
+        empty_cache()
 
         def dummy_client():
             return None
@@ -92,6 +93,7 @@ class TestUrlCaching(unittest.TestCase):
 
     def test_store(self):
         set_store_path('./output/tests', max_node_files=10, rebalancing_limit=30)
+        empty_store()
         for count in range(100):
             add_to_store(str(count), bytes(str(count), 'utf-8'))
 
@@ -105,6 +107,33 @@ class TestUrlCaching(unittest.TestCase):
 
         keys = list_keys()
         self.assertListEqual(sorted(list(filter(lambda x: x != '30', map(str, range(100))))), keys)
+        empty_store()
+
+    def test_store_duplicate_keys(self):
+        set_store_path('./output/tests', max_node_files=10, rebalancing_limit=30)
+        empty_store()
+        for count in range(5):
+            add_to_store(str(count), bytes(str(count), 'utf-8'))
+
+        existing_keys = list_keys()
+        self.assertEqual(len(existing_keys), 5)
+
+        for count in range(5):
+            add_to_store(str(count), bytes(str(count + 100), 'utf-8'))
+
+        existing_keys = list_keys()
+        self.assertEquals(len(existing_keys), 5)
+
+        value = retrieve_from_store('3')
+        self.assertEqual(b'103', value)
+        remove_from_store('3')
+        value = retrieve_from_store('3')
+        self.assertIsNone(value)
+        with self.assertRaises(Exception) as _:
+            retrieve_from_store('3', fail_on_missing=True)
+
+        keys = list_keys()
+        self.assertListEqual(sorted(list(filter(lambda x: x != '3', map(str, range(5))))), keys)
         empty_store()
 
     def tearDown(self):
