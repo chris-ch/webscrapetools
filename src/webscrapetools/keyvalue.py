@@ -79,7 +79,8 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
     :param as_of_date: fake current date (for dev only)
     :return:
     """
-    if not _get_expiry():
+    expiry_periods, expiry_unit = _get_expiry()
+    if not expiry_periods:
         return
 
     index_name = _fileindex_name()
@@ -90,7 +91,6 @@ def invalidate_expired_entries(as_of_date: datetime=None) -> None:
     if as_of_date is None:
         as_of_date = datetime.today()
 
-    expiry_periods, expiry_unit = _get_expiry()
     if expiry_unit == 'day':
         expiry_date = as_of_date - timedelta(days=expiry_periods)
 
