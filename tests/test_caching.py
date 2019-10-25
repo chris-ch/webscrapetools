@@ -109,6 +109,16 @@ class TestUrlCaching(unittest.TestCase):
         self.assertListEqual(sorted(list(filter(lambda x: x != '30', map(str, range(100))))), keys)
         empty_store()
 
+    def test_store_list_keys(self):
+        set_store_path('./output/tests', max_node_files=10, rebalancing_limit=30)
+        empty_store()
+        for count in range(100):
+            add_to_store('value ' + str(count), bytes(str(count), 'utf-8'))
+
+        keys = list_keys()
+        self.assertListEqual(sorted(['value ' + str(x) for x in range(100)]), keys)
+        empty_store()
+
     def test_store_duplicate_keys(self):
         set_store_path('./output/tests', max_node_files=10, rebalancing_limit=30)
         empty_store()

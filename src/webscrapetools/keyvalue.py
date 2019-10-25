@@ -2,7 +2,7 @@ import hashlib
 import itertools
 import logging
 import threading
-from typing import Tuple, Iterable, List, MutableSequence
+from typing import Tuple, Iterable, List, MutableSequence, Callable
 
 from webscrapetools import osaccess
 from datetime import datetime, timedelta
@@ -131,12 +131,18 @@ def list_keys():
     keys = list()
 
     def gather_keys(line):
-        yyyymmdd, key_md5, key_commas = line.strip().split(' ')
-        key = key_commas[1:-1]
+        fields = line.strip().split(' ')
+        parts = ' '.join(fields[2:])
+        key = parts[1:-1]
         keys.append(key)
 
-    osaccess.process_file_by_line(index_name, line_processor=gather_keys)
+    scan_entries(gather_keys)
     return sorted(keys)
+
+
+def scan_entries(entry_processor: Callable[[str], None]):
+    index_name = _fileindex_name()
+    return osaccess.process_file_by_line(index_name, line_processor=entry_processor)
 
 
 def is_store_enabled() -> bool:
